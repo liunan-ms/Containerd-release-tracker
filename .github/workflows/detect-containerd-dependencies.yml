@@ -40,7 +40,7 @@ jobs:
 
           GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
           HEADERS = {
-              "Accept": "application/vnd. github+json",
+              "Accept": "application/vnd.github+json",
               "Authorization": f"Bearer {GITHUB_TOKEN}" if GITHUB_TOKEN else ""
           }
 

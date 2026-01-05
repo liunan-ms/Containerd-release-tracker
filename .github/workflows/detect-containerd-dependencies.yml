@@ -38,23 +38,23 @@ jobs:
           from datetime import datetime
           from packaging import version as pkg_version
 
-          GITHUB_TOKEN = os.environ. get('GITHUB_TOKEN')
+          GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
           HEADERS = {
-              "Accept": "application/vnd. github+json",
+              "Accept": "application/vnd.github+json",
               "Authorization": f"Bearer {GITHUB_TOKEN}" if GITHUB_TOKEN else ""
           }
 
           def fetch_github_api(url):
               """Fetch data from GitHub API"""
               response = requests.get(url, headers=HEADERS)
-              response. raise_for_status()
+              response.raise_for_status()
               return response.json()
 
           def fetch_file_content(repo, tag, filepath):
               """Fetch raw file content from a specific tag"""
               url = f"https://raw.githubusercontent.com/{repo}/{tag}/{filepath}"
               try:
-                  response = requests. get(url, headers=HEADERS)
+                  response = requests.get(url, headers=HEADERS)
                   if response.status_code == 200:
                       return response.text
               except Exception as e:
@@ -71,7 +71,7 @@ jobs:
                   deps['go_minimum'] = go_match.group(1)
               
               # Extract runc version
-              runc_match = re.search(r'github\. com/opencontainers/runc\s+v?([^\s]+)', content)
+              runc_match = re.search(r'github\.com/opencontainers/runc\s+v?([^\s]+)', content)
               if runc_match: 
                   deps['runc'] = runc_match.group(1).strip()
               
@@ -84,7 +84,7 @@ jobs:
               # Look for Go base image
               go_image_match = re.search(r'FROM\s+(?:docker\.io/)?golang:([\d.]+)', content, re.IGNORECASE)
               if go_image_match: 
-                  deps['go_build'] = go_image_match. group(1)
+                  deps['go_build'] = go_image_match.group(1)
               
               # Look for base OS image (for glibc hints)
               os_image_match = re.search(r'FROM\s+(?:docker\.io/)?(ubuntu|debian|alpine):([\w.]+)', content, re.IGNORECASE)
@@ -124,7 +124,7 @@ jobs:
               # Look for minimum requirements
               min_req_match = re.search(r'(?:requires?|minimum)\s+glibc\s+([\d.]+)', content, re.IGNORECASE)
               if min_req_match:  
-                  deps['glibc_min'] = min_req_match. group(1)
+                  deps['glibc_min'] = min_req_match.group(1)
               
               return deps
 
@@ -132,7 +132,7 @@ jobs:
               """Fetch libseccomp version from runc's go.mod"""
               try:
                   # Clean version string
-                  runc_tag = runc_version if runc_version. startswith('v') else f"v{runc_version}"
+                  runc_tag = runc_version if runc_version.startswith('v') else f"v{runc_version}"
                   
                   content = fetch_file_content("opencontainers/runc", runc_tag, "go.mod")
                   if content:
@@ -153,7 +153,7 @@ jobs:
           def load_version_history():
               """Load previous version tracking"""
               try:
-                  with open('. github/containerd-versions.json', 'r') as f:
+                  with open('.github/containerd-versions.json', 'r') as f:
                       return json.load(f)
               except FileNotFoundError:
                   return {"containerd": None, "history": []}
@@ -161,18 +161,18 @@ jobs:
           def save_version_history(data):
               """Save version tracking"""
               os.makedirs('.github', exist_ok=True)
-              with open('.github/containerd-versions. json', 'w') as f:
+              with open('.github/containerd-versions.json', 'w') as f:
                   json.dump(data, f, indent=2)
 
           # Main execution
-          print("Checking for new containerd releases.. .\n")
+          print("Checking for new containerd releases...\n")
           
           # Get latest containerd release
           latest_release = fetch_github_api("https://api.github.com/repos/containerd/containerd/releases/latest")
-          latest_version = latest_release['tag_name']. lstrip('v')
+          latest_version = latest_release['tag_name'].lstrip('v')
           release_date = latest_release['published_at']
           release_url = latest_release['html_url']
-          release_notes = latest_release. get('body', '')
+          release_notes = latest_release.get('body', '')
           
           print(f"Latest containerd release:  v{latest_version}")
           print(f"Release date: {release_date}")
@@ -186,14 +186,14 @@ jobs:
           if not previous_version:
               print("No previous version tracked - this is the first run")
               is_new_release = True
-          elif pkg_version. parse(latest_version) > pkg_version.parse(previous_version):
+          elif pkg_version.parse(latest_version) > pkg_version.parse(previous_version):
               print(f"New release detected!  {previous_version} -> {latest_version}")
               is_new_release = True
           else:
               print(f"No new release (current: v{latest_version})")
           
           if is_new_release:
-              print(f"\nExtracting dependencies from v{latest_version}.. .\n")
+              print(f"\nExtracting dependencies from v{latest_version}...\n")
               
               tag = latest_release['tag_name']
               dependencies = {}
@@ -203,10 +203,10 @@ jobs:
               go_mod_content = fetch_file_content("containerd/containerd", tag, "go.mod")
               if go_mod_content:
                   go_mod_deps = parse_go_mod(go_mod_content)
-                  if go_mod_deps. get('runc'):
+                  if go_mod_deps.get('runc'):
                       dependencies['runc'] = {
                           'version': go_mod_deps['runc'],
-                          'source':  'go. mod',
+                          'source':  'go.mod',
                           'url': f"https://github.com/opencontainers/runc/releases/tag/v{go_mod_deps['runc']}"
                       }
                       print(f"  Found runc: v{go_mod_deps['runc']}")
@@ -238,7 +238,7 @@ jobs:
               
               # Extract from GitHub Actions workflow
               print("Parsing GitHub Actions workflows...")
-              workflow_content = fetch_file_content("containerd/containerd", tag, ". github/workflows/ci.yml")
+              workflow_content = fetch_file_content("containerd/containerd", tag, ".github/workflows/ci.yml")
               if workflow_content:
                   ci_go_versions = parse_github_workflow(workflow_content)
                   if ci_go_versions:  
@@ -251,7 +251,7 @@ jobs:
               print("Parsing release notes...")
               if release_notes:
                   notes_deps = parse_release_notes(release_notes)
-                  if notes_deps. get('glibc') or notes_deps.get('glibc_min'):
+                  if notes_deps.get('glibc') or notes_deps.get('glibc_min'):
                       dependencies['glibc'] = {
                           'version': notes_deps.get('glibc') or notes_deps.get('glibc_min'),
                           'source': 'release notes',
@@ -295,7 +295,7 @@ jobs:
                       "release_url": release_url,
                       "dependencies": dependencies
                   },
-                  "history": history. get('history', [])
+                  "history": history.get('history', [])
               }
               
               # Add previous version to history
@@ -339,16 +339,16 @@ jobs:
           git push
 
       - name: Create detailed issue for new release
-        if: steps. check-release.outputs.new_release == 'true'
+        if: steps.check-release.outputs.new_release == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const version = process.env.VERSION;
-            const previousVersion = process.env. PREVIOUS_VERSION;
-            const releaseUrl = process.env. RELEASE_URL;
-            const releaseDate = process.env. RELEASE_DATE;
-            const dependencies = JSON.parse(process.env. DEPENDENCIES);
-            const previousDependencies = process.env.PREVIOUS_DEPENDENCIES ? JSON.parse(process.env. PREVIOUS_DEPENDENCIES) : {};
+            const previousVersion = process.env.PREVIOUS_VERSION;
+            const releaseUrl = process.env.RELEASE_URL;
+            const releaseDate = process.env.RELEASE_DATE;
+            const dependencies = JSON.parse(process.env.DEPENDENCIES);
+            const previousDependencies = process.env.PREVIOUS_DEPENDENCIES ? JSON.parse(process.env.PREVIOUS_DEPENDENCIES) : {};
             
             let body = `## 🎉 New Containerd Release Detected:  v${version}\n\n`;
             body += `**Release Date**:  ${new Date(releaseDate).toLocaleDateString()}\n`;
@@ -364,11 +364,11 @@ jobs:
             // Runc
             if (dependencies.runc) {
               body += `### 🏃 Runc\n`;
-              body += `- **Version**: \`v${dependencies.runc. version}\`\n`;
+              body += `- **Version**: \`v${dependencies.runc.version}\`\n`;
               body += `- **Source**: ${dependencies.runc.source}\n`;
               body += `- **Release**: ${dependencies.runc.url}\n`;
               
-              if (previousDependencies.runc && previousDependencies.runc. version !== dependencies.runc.version) {
+              if (previousDependencies.runc && previousDependencies.runc.version !== dependencies.runc.version) {
                 body += `- **Change**: \`v${previousDependencies.runc.version}\` → \`v${dependencies.runc.version}\` ⬆️\n`;
               }
               body += `\n`;
@@ -387,19 +387,19 @@ jobs:
                 body += `- **CI Versions**: ${dependencies.golang.ci_versions.map(v => `\`${v}\``).join(', ')} (from GitHub Actions)\n`;
               }
               
-              if (previousDependencies. golang && previousDependencies.golang.minimum !== dependencies.golang.minimum) {
+              if (previousDependencies.golang && previousDependencies.golang.minimum !== dependencies.golang.minimum) {
                 body += `- **Change**:  Minimum \`${previousDependencies.golang.minimum}\` → \`${dependencies.golang.minimum}\` ⬆️\n`;
               }
               body += `\n`;
             }
             
             // Glibc
-            if (dependencies. glibc) {
+            if (dependencies.glibc) {
               body += `### 🔧 Glibc\n`;
               body += `- **Version**: \`${dependencies.glibc.version}\`\n`;
               body += `- **Source**: ${dependencies.glibc.source}\n`;
               if (dependencies.glibc.notes) {
-                body += `- **Notes**: ${dependencies.glibc. notes}\n`;
+                body += `- **Notes**: ${dependencies.glibc.notes}\n`;
               }
               body += `\n`;
             }
@@ -434,7 +434,7 @@ jobs:
               body += `|-----------|-------------------------------|----------------------|--------|\n`;
               
               // Runc row
-              const prevRunc = previousDependencies.runc?. version || 'N/A';
+              const prevRunc = previousDependencies.runc?.version || 'N/A';
               const currRunc = dependencies.runc?.version || 'N/A';
               const runcChange = (prevRunc !== 'N/A' && currRunc !== 'N/A' && prevRunc !== currRunc) ?'⬆️' : '-';
               body += `| runc | \`${prevRunc}\` | \`${currRunc}\` | ${runcChange} |\n`;
@@ -460,7 +460,7 @@ jobs:
             
             const sources = new Set();
             Object.values(dependencies).forEach(dep => {
-              if (dep. source) sources.add(dep.source);
+              if (dep.source) sources.add(dep.source);
             });
             
             sources.forEach(source => {
@@ -480,9 +480,9 @@ jobs:
             });
         env:
           VERSION: ${{ steps.check-release.outputs.version }}
-          PREVIOUS_VERSION: ${{ steps. check-release.outputs.previous_version }}
+          PREVIOUS_VERSION: ${{ steps.check-release.outputs.previous_version }}
           RELEASE_URL: ${{ steps.check-release.outputs.release_url }}
-          RELEASE_DATE: ${{ steps.check-release.outputs. release_date }}
+          RELEASE_DATE: ${{ steps.check-release.outputs.release_date }}
           DEPENDENCIES: ${{ steps.check-release.outputs.dependencies }}
           PREVIOUS_DEPENDENCIES: ${{ steps.check-release.outputs.previous_dependencies }}
 

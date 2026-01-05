@@ -1,7 +1,7 @@
 name: Detect Containerd Release and Dependencies
 
 on:
-  schedule:  
+  schedule:   
     # Run daily at 00:00 UTC
     - cron: '0 0 * * *'
   workflow_dispatch:  # Allow manual triggering
@@ -20,7 +20,7 @@ jobs:
 
       - name: Set up Python
         uses: actions/setup-python@v5
-        with:  
+        with:   
           python-version: '3.11'
 
       - name: Install dependencies
@@ -29,7 +29,7 @@ jobs:
 
       - name: Check for new containerd release and extract dependencies
         id:  check-release
-        run:  |
+        run: |
           python << 'EOF'
           import requests
           import json
@@ -38,9 +38,9 @@ jobs:
           from datetime import datetime
           from packaging import version as pkg_version
 
-          GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
+          GITHUB_TOKEN = os.environ. get('GITHUB_TOKEN')
           HEADERS = {
-              "Accept": "application/vnd.github+json",
+              "Accept": "application/vnd. github+json",
               "Authorization": f"Bearer {GITHUB_TOKEN}" if GITHUB_TOKEN else ""
           }
 
@@ -58,20 +58,20 @@ jobs:
                   if response.status_code == 200:
                       return response.text
               except Exception as e:
-                  print(f"⚠️ Could not fetch {filepath}: {e}")
+                  print(f"Could not fetch {filepath}: {e}")
               return None
 
           def parse_go_mod(content):
-              """Extract dependencies from go. mod file"""
+              """Extract dependencies from go.mod file"""
               deps = {}
               
               # Extract Go version
-              go_match = re. search(r'^go\s+([\d.]+)', content, re.MULTILINE)
+              go_match = re.search(r'^go\s+([\d.]+)', content, re.MULTILINE)
               if go_match:
                   deps['go_minimum'] = go_match.group(1)
               
               # Extract runc version
-              runc_match = re. search(r'github\.com/opencontainers/runc\s+v? ([^\s]+)', content)
+              runc_match = re.search(r'github\. com/opencontainers/runc\s+v?([^\s]+)', content)
               if runc_match: 
                   deps['runc'] = runc_match.group(1).strip()
               
@@ -82,12 +82,12 @@ jobs:
               deps = {}
               
               # Look for Go base image
-              go_image_match = re.search(r'FROM\s+(?:docker\. io/)?golang:([\d.]+)', content, re.IGNORECASE)
-              if go_image_match:
-                  deps['go_build'] = go_image_match.group(1)
+              go_image_match = re.search(r'FROM\s+(?:docker\.io/)?golang:([\d.]+)', content, re.IGNORECASE)
+              if go_image_match: 
+                  deps['go_build'] = go_image_match. group(1)
               
               # Look for base OS image (for glibc hints)
-              os_image_match = re.search(r'FROM\s+(?:docker\.io/)?(ubuntu|debian|alpine):([\w. ]+)', content, re.IGNORECASE)
+              os_image_match = re.search(r'FROM\s+(?:docker\.io/)?(ubuntu|debian|alpine):([\w.]+)', content, re.IGNORECASE)
               if os_image_match:
                   deps['base_os'] = f"{os_image_match.group(1)}:{os_image_match.group(2)}"
               
@@ -100,7 +100,7 @@ jobs:
               # Look for Go version matrix
               go_matrix_match = re.findall(r'go-version:\s*\[([^\]]+)\]', content)
               for match in go_matrix_match: 
-                  versions = [v. strip().strip('"\'') for v in match.split(',')]
+                  versions = [v.strip().strip('"\'') for v in match.split(',')]
                   go_versions.extend(versions)
               
               # Look for single Go version
@@ -117,14 +117,14 @@ jobs:
                   return deps
               
               # Look for glibc mentions
-              glibc_match = re.search(r'glibc\s+(? :version\s+)?([\d.]+)', content, re.IGNORECASE)
-              if glibc_match: 
-                  deps['glibc'] = glibc_match. group(1)
+              glibc_match = re.search(r'glibc\s+(?:version\s+)?([\d.]+)', content, re.IGNORECASE)
+              if glibc_match:  
+                  deps['glibc'] = glibc_match.group(1)
               
               # Look for minimum requirements
-              min_req_match = re.search(r'(? :requires? |minimum)\s+glibc\s+([\d.]+)', content, re.IGNORECASE)
-              if min_req_match: 
-                  deps['glibc_min'] = min_req_match.group(1)
+              min_req_match = re.search(r'(?:requires?|minimum)\s+glibc\s+([\d.]+)', content, re.IGNORECASE)
+              if min_req_match:  
+                  deps['glibc_min'] = min_req_match. group(1)
               
               return deps
 
@@ -132,7 +132,7 @@ jobs:
               """Fetch libseccomp version from runc's go.mod"""
               try:
                   # Clean version string
-                  runc_tag = runc_version if runc_version.startswith('v') else f"v{runc_version}"
+                  runc_tag = runc_version if runc_version. startswith('v') else f"v{runc_version}"
                   
                   content = fetch_file_content("opencontainers/runc", runc_tag, "go.mod")
                   if content:
@@ -146,7 +146,7 @@ jobs:
                       if seccomp_match2:
                           return {'libseccomp':  seccomp_match2.group(1).strip()}
               except Exception as e:
-                  print(f"⚠️ Could not fetch runc dependencies: {e}")
+                  print(f"Could not fetch runc dependencies: {e}")
               
               return {}
 
@@ -165,7 +165,7 @@ jobs:
                   json.dump(data, f, indent=2)
 
           # Main execution
-          print("🔍 Checking for new containerd releases.. .\n")
+          print("Checking for new containerd releases.. .\n")
           
           # Get latest containerd release
           latest_release = fetch_github_api("https://api.github.com/repos/containerd/containerd/releases/latest")
@@ -174,8 +174,8 @@ jobs:
           release_url = latest_release['html_url']
           release_notes = latest_release. get('body', '')
           
-          print(f"📦 Latest containerd release: v{latest_version}")
-          print(f"📅 Release date: {release_date}")
+          print(f"Latest containerd release:  v{latest_version}")
+          print(f"Release date: {release_date}")
           
           # Load version history
           history = load_version_history()
@@ -184,71 +184,71 @@ jobs:
           # Check if this is a new release
           is_new_release = False
           if not previous_version:
-              print("ℹ️  No previous version tracked - this is the first run")
+              print("No previous version tracked - this is the first run")
               is_new_release = True
-          elif pkg_version.parse(latest_version) > pkg_version.parse(previous_version):
-              print(f"✨ New release detected!  {previous_version} → {latest_version}")
+          elif pkg_version. parse(latest_version) > pkg_version.parse(previous_version):
+              print(f"New release detected!  {previous_version} -> {latest_version}")
               is_new_release = True
           else:
-              print(f"✅ No new release (current: v{latest_version})")
+              print(f"No new release (current: v{latest_version})")
           
           if is_new_release:
-              print(f"\n🔎 Extracting dependencies from v{latest_version}...\n")
+              print(f"\nExtracting dependencies from v{latest_version}.. .\n")
               
               tag = latest_release['tag_name']
               dependencies = {}
               
               # Extract from go.mod
-              print("📄 Parsing go. mod...")
+              print("Parsing go.mod...")
               go_mod_content = fetch_file_content("containerd/containerd", tag, "go.mod")
               if go_mod_content:
                   go_mod_deps = parse_go_mod(go_mod_content)
                   if go_mod_deps. get('runc'):
                       dependencies['runc'] = {
                           'version': go_mod_deps['runc'],
-                          'source': 'go. mod',
+                          'source':  'go. mod',
                           'url': f"https://github.com/opencontainers/runc/releases/tag/v{go_mod_deps['runc']}"
                       }
-                      print(f"  ✓ runc: v{go_mod_deps['runc']}")
+                      print(f"  Found runc: v{go_mod_deps['runc']}")
                   
                   if go_mod_deps.get('go_minimum'):
                       if 'golang' not in dependencies:
                           dependencies['golang'] = {}
                       dependencies['golang']['minimum'] = go_mod_deps['go_minimum']
                       dependencies['golang']['source'] = 'go.mod'
-                      print(f"  ✓ Go minimum: {go_mod_deps['go_minimum']}")
+                      print(f"  Found Go minimum:  {go_mod_deps['go_minimum']}")
               
               # Extract from Dockerfile
-              print("📄 Parsing Dockerfile...")
+              print("Parsing Dockerfile...")
               dockerfile_content = fetch_file_content("containerd/containerd", tag, "Dockerfile")
-              if dockerfile_content:
+              if dockerfile_content: 
                   dockerfile_deps = parse_dockerfile(dockerfile_content)
                   if dockerfile_deps.get('go_build'):
-                      if 'golang' not in dependencies: 
+                      if 'golang' not in dependencies:  
                           dependencies['golang'] = {}
                       dependencies['golang']['build'] = dockerfile_deps['go_build']
-                      print(f"  ✓ Go build version: {dockerfile_deps['go_build']}")
+                      print(f"  Found Go build version: {dockerfile_deps['go_build']}")
                   
                   if dockerfile_deps.get('base_os'):
                       dependencies['base_os'] = {
                           'image': dockerfile_deps['base_os'],
                           'source': 'Dockerfile'
                       }
-                      print(f"  ✓ Base OS: {dockerfile_deps['base_os']}")
+                      print(f"  Found Base OS: {dockerfile_deps['base_os']}")
               
               # Extract from GitHub Actions workflow
-              print("📄 Parsing GitHub Actions workflows...")
+              print("Parsing GitHub Actions workflows...")
               workflow_content = fetch_file_content("containerd/containerd", tag, ". github/workflows/ci.yml")
               if workflow_content:
                   ci_go_versions = parse_github_workflow(workflow_content)
-                  if ci_go_versions: 
-                      if 'golang' not in dependencies:
+                  if ci_go_versions:  
+                      if 'golang' not in dependencies: 
                           dependencies['golang'] = {}
                       dependencies['golang']['ci_versions'] = ci_go_versions
-                      print(f"  ✓ CI Go versions: {', '.join(ci_go_versions)}")
+                      print(f"  Found CI Go versions: {', '.join(ci_go_versions)}")
               
               # Extract from release notes
-              print("📄 Parsing release notes...")
+              print("Parsing release notes...")
               if release_notes:
                   notes_deps = parse_release_notes(release_notes)
                   if notes_deps. get('glibc') or notes_deps.get('glibc_min'):
@@ -257,24 +257,24 @@ jobs:
                           'source': 'release notes',
                           'notes': 'Mentioned in release notes'
                       }
-                      print(f"  ✓ glibc:  {dependencies['glibc']['version']}")
+                      print(f"  Found glibc: {dependencies['glibc']['version']}")
               
               # Fetch runc dependencies
               if dependencies.get('runc'):
-                  print(f"📄 Fetching runc v{dependencies['runc']['version']} dependencies...")
+                  print(f"Fetching runc v{dependencies['runc']['version']} dependencies...")
                   runc_deps = fetch_runc_dependencies(dependencies['runc']['version'])
-                  if runc_deps: 
+                  if runc_deps:  
                       for key, val in runc_deps.items():
                           dependencies[key] = {
                               'version': val,
                               'source': f"runc v{dependencies['runc']['version']} go.mod",
                               'url': f"https://github.com/seccomp/{key}/releases"
                           }
-                          print(f"  ✓ {key}: v{val}")
+                          print(f"  Found {key}: v{val}")
               
               # Get libseccomp latest if not found
               if not any('libseccomp' in k for k in dependencies.keys()):
-                  print("📄 Fetching latest libseccomp release...")
+                  print("Fetching latest libseccomp release...")
                   try:
                       libseccomp_release = fetch_github_api("https://api.github.com/repos/seccomp/libseccomp/releases/latest")
                       dependencies['libseccomp'] = {
@@ -283,8 +283,8 @@ jobs:
                           'url':  libseccomp_release['html_url'],
                           'notes': 'Latest available version (not explicitly required by runc)'
                       }
-                      print(f"  ✓ libseccomp (latest): v{dependencies['libseccomp']['version']}")
-                  except: 
+                      print(f"  Found libseccomp (latest): v{dependencies['libseccomp']['version']}")
+                  except:  
                       pass
               
               # Prepare data to save
@@ -318,9 +318,9 @@ jobs:
                   f.write(f"release_url={release_url}\n")
                   f.write(f"release_date={release_date}\n")
                   f.write(f"dependencies={json.dumps(dependencies)}\n")
-                  f. write(f"previous_dependencies={json.dumps(history.get('containerd', {}).get('dependencies', {}))}\n")
+                  f.write(f"previous_dependencies={json.dumps(history.get('containerd', {}).get('dependencies', {}))}\n")
               
-              print(f"\n✅ Successfully extracted dependencies for v{latest_version}")
+              print(f"\nSuccessfully extracted dependencies for v{latest_version}")
           else:
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   f.write(f"new_release=false\n")
@@ -344,11 +344,11 @@ jobs:
         with:
           script: |
             const version = process.env.VERSION;
-            const previousVersion = process.env.PREVIOUS_VERSION;
-            const releaseUrl = process.env.RELEASE_URL;
-            const releaseDate = process.env.RELEASE_DATE;
+            const previousVersion = process.env. PREVIOUS_VERSION;
+            const releaseUrl = process.env. RELEASE_URL;
+            const releaseDate = process.env. RELEASE_DATE;
             const dependencies = JSON.parse(process.env. DEPENDENCIES);
-            const previousDependencies = process.env.PREVIOUS_DEPENDENCIES ?  JSON.parse(process.env. PREVIOUS_DEPENDENCIES) : {};
+            const previousDependencies = process.env.PREVIOUS_DEPENDENCIES ? JSON.parse(process.env. PREVIOUS_DEPENDENCIES) : {};
             
             let body = `## 🎉 New Containerd Release Detected:  v${version}\n\n`;
             body += `**Release Date**:  ${new Date(releaseDate).toLocaleDateString()}\n`;
@@ -436,19 +436,19 @@ jobs:
               // Runc row
               const prevRunc = previousDependencies.runc?. version || 'N/A';
               const currRunc = dependencies.runc?.version || 'N/A';
-              const runcChange = (prevRunc !== 'N/A' && currRunc !== 'N/A' && prevRunc !== currRunc) ? '⬆️' : '-';
+              const runcChange = (prevRunc !== 'N/A' && currRunc !== 'N/A' && prevRunc !== currRunc) ?'⬆️' : '-';
               body += `| runc | \`${prevRunc}\` | \`${currRunc}\` | ${runcChange} |\n`;
               
               // Golang row
               const prevGo = previousDependencies.golang?.minimum || 'N/A';
               const currGo = dependencies.golang?.minimum || 'N/A';
-              const goChange = (prevGo !== 'N/A' && currGo !== 'N/A' && prevGo !== currGo) ? '⬆️' : '-';
+              const goChange = (prevGo !== 'N/A' && currGo !== 'N/A' && prevGo !== currGo) ?'⬆️' : '-';
               body += `| golang (min) | \`${prevGo}\` | \`${currGo}\` | ${goChange} |\n`;
               
               // Glibc row
               const prevGlibc = previousDependencies.glibc?.version || 'N/A';
               const currGlibc = dependencies.glibc?.version || 'N/A';
-              const glibcChange = (prevGlibc !== 'N/A' && currGlibc !== 'N/A' && prevGlibc !== currGlibc) ? '⬆️' : '-';
+              const glibcChange = (prevGlibc !== 'N/A' && currGlibc !== 'N/A' && prevGlibc !== currGlibc) ?'⬆️' : '-';
               body += `| glibc | \`${prevGlibc}\` | \`${currGlibc}\` | ${glibcChange} |\n`;
               
               body += `\n`;

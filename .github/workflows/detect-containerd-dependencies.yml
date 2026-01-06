@@ -291,10 +291,11 @@ jobs:
               new_data = {
                   "containerd": {
                       "version": latest_version,
+                      "release_date": release_date,
                       "release_url": release_url,
                       "dependencies": dependencies
                   },
-                  "history": history.get('history', [])
+                  "history": history.get('history', []) if history else []
               }
               
               # Add previous version to history

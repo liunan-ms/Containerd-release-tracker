@@ -267,8 +267,8 @@ jobs:
                       for key, val in runc_deps.items():
                           dependencies[key] = {
                               'version': val,
-                              'source': f"runc v{dependencies['runc']['version']} go.mod",
-                              'url': f"https://github.com/seccomp/{key}/releases"
+                              'source': f"runc v{dependencies['runc']['version']} Dockerfile",
+                              'url': f"https://github.com/seccomp/libseccomp/releases"
                           }
                           print(f"  Found {key}: v{val}")
               

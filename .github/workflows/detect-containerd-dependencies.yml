@@ -129,22 +129,18 @@ jobs:
               return deps
 
           def fetch_runc_dependencies(runc_version):
-              """Fetch libseccomp version from runc's go.mod"""
+              """Fetch libseccomp version from runc's Dockerfile"""
               try:
                   # Clean version string
                   runc_tag = runc_version if runc_version.startswith('v') else f"v{runc_version}"
                   
-                  content = fetch_file_content("opencontainers/runc", runc_tag, "go.mod")
+                  content = fetch_file_content("opencontainers/runc", runc_tag, "Dockerfile")
                   if content:
-                      # Look for libseccomp
-                      seccomp_match = re.search(r'github\.com/seccomp/libseccomp-golang\s+v?([^\s]+)', content)
+                      # Look for ARG LIBSECCOMP_VERSION
+                      seccomp_match = re.search(r'ARG\s+LIBSECCOMP_VERSION[=\s]+([^\s\n]+)', content, re.IGNORECASE)
                       if seccomp_match:
-                          return {'libseccomp_golang': seccomp_match.group(1).strip()}
-                      
-                      # Alternative pattern
-                      seccomp_match2 = re.search(r'libseccomp[^\s]*\s+v?([^\s]+)', content)
-                      if seccomp_match2:
-                          return {'libseccomp':  seccomp_match2.group(1).strip()}
+                          version = seccomp_match.group(1).strip()
+                          return {'libseccomp': version}
               except Exception as e:
                   print(f"Could not fetch runc dependencies: {e}")
               
@@ -170,12 +166,10 @@ jobs:
           # Get latest containerd release
           latest_release = fetch_github_api("https://api.github.com/repos/containerd/containerd/releases/latest")
           latest_version = latest_release['tag_name'].lstrip('v')
-          release_date = latest_release['published_at']
           release_url = latest_release['html_url']
           release_notes = latest_release.get('body', '')
           
           print(f"Latest containerd release:  v{latest_version}")
-          print(f"Release date: {release_date}")
           
           # Load version history
           history = load_version_history()
@@ -297,7 +291,6 @@ jobs:
               new_data = {
                   "containerd": {
                       "version": latest_version,
-                      "release_date": release_date,
                       "release_url": release_url,
                       "dependencies": dependencies
                   },
@@ -322,7 +315,6 @@ jobs:
                   f.write(f"version={latest_version}\n")
                   f.write(f"previous_version={previous_version or 'none'}\n")
                   f.write(f"release_url={release_url}\n")
-                  f.write(f"release_date={release_date}\n")
                   f.write(f"dependencies={json.dumps(dependencies)}\n")
                   f.write(f"previous_dependencies={json.dumps(history.get('containerd', {}).get('dependencies', {}))}\n")
               
@@ -352,7 +344,6 @@ jobs:
             const version = process.env.VERSION;
             const previousVersion = process.env.PREVIOUS_VERSION;
             const releaseUrl = process.env.RELEASE_URL;
-            const releaseDate = process.env.RELEASE_DATE;
             const dependencies = JSON.parse(process.env.DEPENDENCIES);
             const previousDependencies = process.env.PREVIOUS_DEPENDENCIES ? JSON.parse(process.env.PREVIOUS_DEPENDENCIES) : {};
             
@@ -488,7 +479,6 @@ jobs:
           VERSION: ${{ steps.check-release.outputs.version }}
           PREVIOUS_VERSION: ${{ steps.check-release.outputs.previous_version }}
           RELEASE_URL: ${{ steps.check-release.outputs.release_url }}
-          RELEASE_DATE: ${{ steps.check-release.outputs.release_date }}
           DEPENDENCIES: ${{ steps.check-release.outputs.dependencies }}
           PREVIOUS_DEPENDENCIES: ${{ steps.check-release.outputs.previous_dependencies }}
 

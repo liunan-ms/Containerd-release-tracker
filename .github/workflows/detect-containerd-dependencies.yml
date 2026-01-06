@@ -198,18 +198,24 @@ jobs:
               tag = latest_release['tag_name']
               dependencies = {}
               
+              # Extract runc version from script/setup/runc-version
+              print("Parsing script/setup/runc-version...")
+              runc_version_content = fetch_file_content("containerd/containerd", tag, "script/setup/runc-version")
+              if runc_version_content:
+                  runc_version = runc_version_content.strip().lstrip('v')
+                  if runc_version:
+                      dependencies['runc'] = {
+                          'version': runc_version,
+                          'source': 'script/setup/runc-version',
+                          'url': f"https://github.com/opencontainers/runc/releases/tag/v{runc_version}"
+                      }
+                      print(f"  Found runc: v{runc_version}")
+              
               # Extract from go.mod
               print("Parsing go.mod...")
               go_mod_content = fetch_file_content("containerd/containerd", tag, "go.mod")
               if go_mod_content:
                   go_mod_deps = parse_go_mod(go_mod_content)
-                  if go_mod_deps.get('runc'):
-                      dependencies['runc'] = {
-                          'version': go_mod_deps['runc'],
-                          'source':  'go.mod',
-                          'url': f"https://github.com/opencontainers/runc/releases/tag/v{go_mod_deps['runc']}"
-                      }
-                      print(f"  Found runc: v{go_mod_deps['runc']}")
                   
                   if go_mod_deps.get('go_minimum'):
                       if 'golang' not in dependencies:

@@ -173,7 +173,7 @@ jobs:
           
           # Load version history
           history = load_version_history()
-          previous_version = history.get('containerd', {}).get('version') if history.get('containerd') else None
+          previous_version = history.get('containerd', {}).get('version') if history and history.get('containerd') else None
           
           # Check if this is a new release
           is_new_release = False

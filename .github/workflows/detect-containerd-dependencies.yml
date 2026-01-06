@@ -316,7 +316,7 @@ jobs:
                   f.write(f"previous_version={previous_version or 'none'}\n")
                   f.write(f"release_url={release_url}\n")
                   f.write(f"dependencies={json.dumps(dependencies)}\n")
-                  prev_deps = history.get('containerd', {}).get('dependencies', {}) if history else {}
+                  prev_deps = (history.get('containerd', {}).get('dependencies', {}) if history.get('containerd') else {}) if history else {}
                   f.write(f"previous_dependencies={json.dumps(prev_deps)}\n")
               
               print(f"\nSuccessfully extracted dependencies for v{latest_version}")

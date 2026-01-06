@@ -291,7 +291,6 @@ jobs:
               new_data = {
                   "containerd": {
                       "version": latest_version,
-                      "release_date": release_date,
                       "release_url": release_url,
                       "dependencies": dependencies
                   },
@@ -349,7 +348,6 @@ jobs:
             const previousDependencies = process.env.PREVIOUS_DEPENDENCIES ? JSON.parse(process.env.PREVIOUS_DEPENDENCIES) : {};
             
             let body = `## 🎉 New Containerd Release Detected:  v${version}\n\n`;
-            body += `**Release Date**:  ${new Date(releaseDate).toLocaleDateString()}\n`;
             body += `**Release Notes**: ${releaseUrl}\n\n`;
             
             if (previousVersion !== 'none') {

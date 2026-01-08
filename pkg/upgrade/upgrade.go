@@ -730,10 +730,6 @@ func (m *UpgradeManager) UpgradeAllPackages(ctx context.Context, analysisFile st
 	fmt.Println()
 
 	if successCount > 0 {
-		fmt.Println("💡 Next steps:")
-		fmt.Println("   1. Review the changes: cd", m.localRepoPath, "&& git diff origin/3.0-dev")
-		fmt.Println("   2. Push to remote: git push origin", branchName)
-		fmt.Println("   3. Create PR at: https://github.com/microsoft/azurelinux/compare/3.0-dev...liunan-ms:" + branchName)
 		fmt.Println()
 		fmt.Println("🚀 Pushing branch to remote repository...")
 		pushCmd := fmt.Sprintf("cd %s && git push origin %s", m.localRepoPath, branchName)
@@ -744,6 +740,10 @@ func (m *UpgradeManager) UpgradeAllPackages(ctx context.Context, analysisFile st
 			fmt.Printf("✅ Branch pushed successfully\n")
 		}
 		fmt.Println()
+
+		fmt.Println("💡 Next steps:")
+		fmt.Println("   1. Review the changes: cd", m.localRepoPath, "&& git diff origin/3.0-dev")
+		fmt.Println("   2. Create PR at: https://github.com/microsoft/azurelinux/compare/3.0-dev...liunan-ms:" + branchName)
 	}
 
 	if failureCount > 0 {

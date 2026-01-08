@@ -188,10 +188,12 @@ Run the parser:
 🌿 Branch: containerd-upgrade-2.2.1-20260108-220643
 📂 Local repository: /workspace/azurelinux
 
+🚀 Pushing branch to remote repository...
+✅ Branch pushed successfully
+
 💡 Next steps:
    1. Review the changes: cd /workspace/azurelinux && git diff origin/3.0-dev
-   2. Push to remote: git push origin containerd-upgrade-2.2.1-20260108-220643
-   3. Create PR at: https://github.com/microsoft/azurelinux/compare/3.0-dev...liunan-ms:containerd-upgrade-2.2.1-20260108-220643
+   2. Create PR at: https://github.com/microsoft/azurelinux/compare/3.0-dev...liunan-ms:containerd-upgrade-2.2.1-20260108-220643
 ```
 
 The tool will:
@@ -285,81 +287,12 @@ Upgrade containerd and dependencies in Azure Linux repository.
      - Update Version and Release fields
      - Update commit hash (if applicable)
      - Add changelog entry
-     - Update Source0 URL
    - Download source tarball from GitHub
    - Calculate sha256sum
    - Update signatures.json file
    - Commit changes with descriptive message
 5. **Summary**: Display upgrade results and next steps
 
-## Package Usage
-
-You can import the parser package in your own Go projects:
-
-```go
-import (
-    "context"
-    "log"
-    "github.com/liunan-ms/containerd-release-tracker/pkg/parser"
-)
-
-func main() {
-    p := parser.NewParser("your-github-token")
-    result, err := p.ParseRelease(context.Background(), "2.2.1")
-    if err != nil {
-        log.Fatal(err)
-    }
-    p.SaveToFile(result, "output.json")
-}
-```
-
-Import the upgrade package:
-
-```go
-import (
-    "context"
-    "github.com/liunan-ms/containerd-release-tracker/pkg/upgrade"
-)
-
-func main() {
-    ctx := context.Background()
-    manager := upgrade.NewUpgradeManager("github-token", "/path/to/azurelinux")
-    err := manager.UpgradeAllPackages(ctx, "containerd_release_analysis.json")
-    if err != nil {
-        log.Fatal(err)
-    }
-}
-```
-
-## Dependencies
-
-- **github.com/google/go-github/v58** - GitHub API client
-- **golang.org/x/oauth2** - OAuth2 authentication for GitHub API
-
-## Development
-
-### Run Without Building
-
-```bash
-# Run parser
-go run main.go --version 2.2.1
-
-# Run upgrade tool
-go run cmd/upgrade/main.go --analysis containerd_release_analysis.json --token $GITHUB_TOKEN
-```
-
-### Run Tests
-
-```bash
-# Run all tests
-go test ./...
-
-# Run tests with coverage
-go test -cover ./...
-
-# Verbose output
-go test -v ./...
-```
 
 ### Code Structure
 
@@ -403,42 +336,6 @@ export GITHUB_TOKEN='your_github_token_here'
 # Run without token flag
 ./containerd-tracker --version 2.2.1
 ./upgrade-packages --analysis containerd_release_analysis.json
-```
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue**: "No signatures.json found for package"
-- **Cause**: Package doesn't have a signatures file
-- **Solution**: Tool automatically skips signature update for such packages
-
-**Issue**: "Could not fetch commit hash"
-- **Cause**: Version tag doesn't exist in GitHub
-- **Solution**: Tool continues without commit hash update
-
-**Issue**: "LLM returned invalid JSON"
-- **Cause**: LLM response parsing error
-- **Solution**: Check your GitHub token and retry
-
-**Issue**: GitHub API rate limit
-- **Cause**: Too many API calls without authentication
-- **Solution**: Always provide GitHub token
-
-### Debug Tips
-
-```bash
-# Check if Azure Linux repo exists
-ls -la /workspace/azurelinux/SPECS/
-
-# Verify GitHub token
-curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
-
-# Test containerd release fetch
-curl https://api.github.com/repos/containerd/containerd/releases/tags/v2.2.1
-
-# Check branch creation
-cd /workspace/azurelinux && git branch | grep containerd-upgrade
 ```
 
 ## Contributing

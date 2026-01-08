@@ -118,25 +118,89 @@ func extractVersionFromSpec(content string) string {
 	return ""
 }
 
-// extractCommitFromSpec extracts the %global commit field from a spec file
+// extractCommitFromSpec extracts the %define commit_hash field from a spec file
 func extractCommitFromSpec(content string) string {
-	re := regexp.MustCompile(`(?m)^%global\s+commit\s+([a-f0-9]{7,40})\s*$`)
+	// Try %define commit_hash format
+	re := regexp.MustCompile(`(?m)^%define\s+commit_hash\s+([a-f0-9]{7,40})\s*$`)
 	matches := re.FindStringSubmatch(content)
 	if len(matches) > 1 {
 		return strings.TrimSpace(matches[1])
 	}
+
 	return ""
 }
 
 // getGitHubRepoFromSpec extracts GitHub repo URL from spec file
 func getGitHubRepoFromSpec(content string) (owner, repo string) {
-	// Try to extract from Source0 URL
-	re := regexp.MustCompile(`(?:https?://)?github\.com/([^/]+)/([^/]+)`)
+	// Extract from any line containing github.com URL (URL, Source0, etc.)
+	// Match github.com/owner/repo and capture owner and repo parts
+	re := regexp.MustCompile(`github\.com/([^/\s]+)/([^/\s#]+)`)
 	matches := re.FindStringSubmatch(content)
 	if len(matches) > 2 {
-		return matches[1], strings.TrimSuffix(matches[2], ".git")
+		repo := strings.TrimSuffix(matches[2], ".git")
+		// Remove any query parameters or anchors
+		if idx := strings.IndexAny(repo, "?#"); idx >= 0 {
+			repo = repo[:idx]
+		}
+		return matches[1], repo
 	}
 	return "", ""
+}
+
+// GetSourceSha256FromGitHub downloads the source tarball from GitHub, calculates sha256sum, and deletes it
+func (m *UpgradeManager) GetSourceSha256FromGitHub(ctx context.Context, owner, repo, version string) (string, error) {
+	// Ensure version has 'v' prefix for tarball URL
+	tagName := version
+	if !strings.HasPrefix(version, "v") {
+		tagName = "v" + version
+	}
+
+	// Construct GitHub archive URL
+	downloadURL := fmt.Sprintf("https://github.com/%s/%s/archive/%s.tar.gz", owner, repo, tagName)
+
+	// Create temporary file
+	tmpFile, err := os.CreateTemp("", fmt.Sprintf("%s-%s-*.tar.gz", repo, version))
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+
+	// Ensure temp file is deleted on return
+	defer os.Remove(tmpPath)
+
+	fmt.Printf("🔐 Downloading source tarball from %s...\n", downloadURL)
+
+	// Download the file using curl
+	downloadCmd := fmt.Sprintf("curl -sSL -o %s %s", tmpPath, downloadURL)
+	if err := m.runCommand(downloadCmd); err != nil {
+		return "", fmt.Errorf("failed to download tarball: %w", err)
+	}
+
+	// Verify file was downloaded and has content
+	fileInfo, err := os.Stat(tmpPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat downloaded file: %w", err)
+	}
+	if fileInfo.Size() == 0 {
+		return "", fmt.Errorf("downloaded file is empty")
+	}
+
+	// Calculate sha256sum
+	sha256Cmd := fmt.Sprintf("sha256sum %s | awk '{print $1}'", tmpPath)
+	sha256Exec := exec.Command("bash", "-c", sha256Cmd)
+	output, err := sha256Exec.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to calculate sha256sum: %w: %s", err, string(output))
+	}
+
+	sha256 := strings.TrimSpace(string(output))
+	if len(sha256) != 64 {
+		return "", fmt.Errorf("invalid sha256sum length: %d (expected 64)", len(sha256))
+	}
+
+	fmt.Printf("✅ SHA256: %s\n", sha256)
+	return sha256, nil
 }
 
 // extractSourceFilenameFromSpec extracts the source filename from spec file
@@ -264,33 +328,21 @@ func (m *UpgradeManager) GetCommitHashForVersion(ctx context.Context, owner, rep
 
 	fmt.Printf("🔍 Looking up commit hash for %s/%s@%s...\n", owner, repo, tagName)
 
-	// Try to get the tag
-	tag, resp, err := m.client.Git.GetRef(ctx, owner, repo, "tags/"+tagName)
-	if err != nil {
-		// If tag doesn't exist, try without 'v' prefix
-		if resp != nil && resp.StatusCode == 404 && strings.HasPrefix(tagName, "v") {
-			tagName = strings.TrimPrefix(tagName, "v")
-			tag, _, err = m.client.Git.GetRef(ctx, owner, repo, "tags/"+tagName)
-			if err != nil {
-				return "", fmt.Errorf("failed to find tag %s: %w", tagName, err)
-			}
-		} else {
-			return "", fmt.Errorf("failed to get tag: %w", err)
-		}
+	// Method 1: Try commits endpoint (works for tags and branches)
+	commit, _, err := m.client.Repositories.GetCommit(ctx, owner, repo, tagName, nil)
+	if err == nil && commit != nil && commit.SHA != nil {
+		commitSHA := *commit.SHA
+		fmt.Printf("✅ Found commit hash (via commits endpoint): %s\n", commitSHA)
+		return commitSHA, nil
 	}
 
-	if tag.Object == nil || tag.Object.SHA == nil {
-		return "", fmt.Errorf("tag has no commit SHA")
-	}
-
-	commitSHA := *tag.Object.SHA
-	fmt.Printf("✅ Found commit hash: %s\n", commitSHA[:8])
-	return commitSHA, nil
+	fmt.Printf("❌ Not found commit hash\n")
+	return "", nil
 }
 
 // UpdateSignaturesJson updates the signatures.json file with new version and sha256
 func (m *UpgradeManager) UpdateSignaturesJson(ctx context.Context, packageName, version, sha256sum string) error {
-	signaturesPath := fmt.Sprintf("%s/SPECS/%s/signatures.json", m.localRepoPath, packageName)
+	signaturesPath := fmt.Sprintf("%s/SPECS/%s/%s.signatures.json", m.localRepoPath, packageName, packageName)
 
 	// Check if signatures.json exists
 	if _, err := os.Stat(signaturesPath); os.IsNotExist(err) {
@@ -306,39 +358,56 @@ func (m *UpgradeManager) UpdateSignaturesJson(ctx context.Context, packageName, 
 		return fmt.Errorf("failed to read signatures.json: %w", err)
 	}
 
-	// Parse JSON
-	var signatures map[string]interface{}
-	if err := json.Unmarshal(data, &signatures); err != nil {
-		return fmt.Errorf("failed to parse signatures.json: %w", err)
+	currentContent := string(data)
+
+	// For LLM prompt, use "containerd" instead of "containerd2" for tarball naming
+	tarballName := packageName
+	if packageName == "containerd2" {
+		tarballName = "containerd"
 	}
 
-	// Update or add the signature for this version
-	if signatures["Signatures"] == nil {
-		signatures["Signatures"] = make(map[string]interface{})
-	}
+	// Use LLM to update the signatures.json
+	prompt := fmt.Sprintf(`You are an expert in JSON file management for Azure Linux package signatures.
 
-	sigMap, ok := signatures["Signatures"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid signatures.json format: Signatures is not a map")
-	}
+Task: Update the signatures.json file to replace the existing package tarball signature with the new version.
 
-	// Add new signature entry
-	sigMap[version] = map[string]string{
-		"sha256": sha256sum,
-	}
+Current signatures.json content:
+%s
 
-	// Write back to file with proper formatting
-	updatedData, err := json.MarshalIndent(signatures, "", "  ")
+Instructions:
+1. Find the entry in "Signatures" that matches the pattern "%s-*.tar.gz" (e.g., "%s-2.0.0.tar.gz", "%s-1.9.0.tar.gz", etc.)
+2. Replace that entry's key with "%s-%s.tar.gz" and its value with "%s"
+3. If no matching tarball entry exists, add a new entry with key "%s-%s.tar.gz" and value "%s"
+4. Keep all other entries (like .service files, .toml files, etc.) unchanged
+5. Maintain proper JSON formatting with 2-space indentation
+6. Ensure the JSON structure is valid
+
+Example:
+- Original: "containerd-2.0.0.tar.gz": "old_hash"
+- Updated:  "containerd-2.2.1.tar.gz": "new_hash"
+
+Return ONLY the complete updated signatures.json content, no explanations or markdown code blocks.`,
+		currentContent, tarballName, tarballName, tarballName, tarballName, version, sha256sum, tarballName, version, sha256sum)
+
+	// Call LLM to get updated JSON content
+	result, err := m.llmClient.CallLLMRaw(ctx, prompt)
 	if err != nil {
-		return fmt.Errorf("failed to marshal signatures.json: %w", err)
+		return fmt.Errorf("LLM call failed: %w", err)
 	}
 
-	if err := os.WriteFile(signaturesPath, updatedData, 0644); err != nil {
+	// Validate the result is valid JSON
+	var testJSON map[string]interface{}
+	if err := json.Unmarshal([]byte(result), &testJSON); err != nil {
+		return fmt.Errorf("LLM returned invalid JSON: %w", err)
+	}
+
+	// Write the updated content
+	if err := os.WriteFile(signaturesPath, []byte(result), 0644); err != nil {
 		return fmt.Errorf("failed to write signatures.json: %w", err)
 	}
 
-	// Stage the signatures.json file
-	addCmd := fmt.Sprintf("cd %s && git add SPECS/%s/signatures.json", m.localRepoPath, packageName)
+	// Stage the signatures.json file - use original packageName for directory path
+	addCmd := fmt.Sprintf("cd %s && git add SPECS/%s/%s.signatures.json", m.localRepoPath, packageName, packageName)
 	if err := m.runCommand(addCmd); err != nil {
 		fmt.Printf("⚠️  Failed to stage signatures.json: %v\n", err)
 	}
@@ -427,6 +496,13 @@ func (m *UpgradeManager) UpdateSpecFile(ctx context.Context, packageName, curren
 		if commitRe.MatchString(contentToUpdate) {
 			contentToUpdate = commitRe.ReplaceAllString(contentToUpdate, fmt.Sprintf("${1}%s${2}", commitHash))
 			fmt.Printf("✅ Updated %%global commit to %s\n", commitHash[:8])
+		} else {
+			// Try %define commit_hash format
+			commitRe = regexp.MustCompile(`(?m)^(%define\s+commit_hash\s+)[a-f0-9]{7,40}(\s*)$`)
+			if commitRe.MatchString(contentToUpdate) {
+				contentToUpdate = commitRe.ReplaceAllString(contentToUpdate, fmt.Sprintf("${1}%s${2}", commitHash))
+				fmt.Printf("✅ Updated %%define commit_hash to %s\n", commitHash[:8])
+			}
 		}
 	}
 
@@ -464,13 +540,20 @@ Return ONLY the complete updated spec file content, no explanations or markdown 
 
 	// Post-process: Ensure commit hash is updated even if LLM didn't handle it
 	if commitHash != "" {
-		commitRe := regexp.MustCompile(`(?m)^(%global\s+commit\s+)[a-f0-9]{7,40}(\s*)$`)
-		if commitRe.MatchString(result) {
-			// Verify it's set to the correct hash
-			currentCommit := extractCommitFromSpec(result)
-			if currentCommit != commitHash {
+		currentCommit := extractCommitFromSpec(result)
+		if currentCommit != commitHash {
+			// Try %global commit format first
+			commitRe := regexp.MustCompile(`(?m)^(%global\s+commit\s+)[a-f0-9]{7,40}(\s*)$`)
+			if commitRe.MatchString(result) {
 				result = commitRe.ReplaceAllString(result, fmt.Sprintf("${1}%s${2}", commitHash))
 				fmt.Printf("🔧 Force-updated %%global commit to %s (LLM didn't update it correctly)\n", commitHash[:8])
+			} else {
+				// Try %define commit_hash format
+				commitRe = regexp.MustCompile(`(?m)^(%define\s+commit_hash\s+)[a-f0-9]{7,40}(\s*)$`)
+				if commitRe.MatchString(result) {
+					result = commitRe.ReplaceAllString(result, fmt.Sprintf("${1}%s${2}", commitHash))
+					fmt.Printf("🔧 Force-updated %%define commit_hash to %s (LLM didn't update it correctly)\n", commitHash[:8])
+				}
 			}
 		}
 	}
@@ -536,11 +619,11 @@ func (m *UpgradeManager) UpgradePackage(ctx context.Context, pkg PackageVersion,
 		fmt.Printf("⏭️  Skipping %s: current version %s is already >= target version %s\n\n", pkg.Name, currentVersion, pkg.Version)
 		return nil
 	}
+	owner, repo := getGitHubRepoFromSpec(currentContent)
 
 	// Try to get commit hash for the version if spec uses commit-based sources
 	commitHash := ""
 	if extractCommitFromSpec(currentContent) != "" {
-		owner, repo := getGitHubRepoFromSpec(currentContent)
 		if owner != "" && repo != "" {
 			hash, err := m.GetCommitHashForVersion(ctx, owner, repo, pkg.Version)
 			if err != nil {
@@ -558,22 +641,24 @@ func (m *UpgradeManager) UpgradePackage(ctx context.Context, pkg PackageVersion,
 	}
 
 	// Get source filename and calculate sha256sum
-	sourceFilename := extractSourceFilenameFromSpec(updatedContent, pkg.Version)
-	if sourceFilename != "" {
-		sha256sum, err := m.GetSourceSha256(ctx, pkg.Name, pkg.Version, sourceFilename)
+	// Try to get sha256sum from GitHub source tarball if owner/repo are available
+	var sha256sum string
+
+	if owner != "" && repo != "" {
+		sha256sum, err = m.GetSourceSha256FromGitHub(ctx, owner, repo, pkg.Version)
 		if err != nil {
-			fmt.Printf("⚠️  Could not calculate sha256sum: %v (continuing without signature update)\n", err)
-		} else {
-			// Update signatures.json
-			if err := m.UpdateSignaturesJson(ctx, pkg.Name, pkg.Version, sha256sum); err != nil {
-				fmt.Printf("⚠️  Could not update signatures.json: %v\n", err)
-			}
+			fmt.Printf("⚠️  Could not calculate sha256sum from GitHub: %v\n", err)
 		}
 	} else {
 		fmt.Printf("ℹ️  Could not extract source filename from spec, skipping signature update\n")
 	}
 
-	// Commit the updated spec file
+	// Update signatures.json if we got a valid sha256sum
+	if sha256sum != "" {
+		if err := m.UpdateSignaturesJson(ctx, pkg.Name, pkg.Version, sha256sum); err != nil {
+			fmt.Printf("⚠️  Could not update signatures.json: %v\n", err)
+		}
+	} // Commit the updated spec file
 	if err := m.CommitSpecFile(ctx, pkg.Name, branch, updatedContent, sha, pkg.Version); err != nil {
 		return err
 	}
@@ -600,6 +685,18 @@ func (m *UpgradeManager) UpgradeAllPackages(ctx context.Context, analysisFile st
 		fmt.Printf("   • %s: %s\n", pkg.Name, pkg.Version)
 	}
 	fmt.Println()
+	// Check if local repository exists, clone if not
+	if _, err := os.Stat(m.localRepoPath); os.IsNotExist(err) {
+		fmt.Printf("📂 Local repository not found at %s\n", m.localRepoPath)
+		fmt.Printf("🔄 Cloning Azure Linux repository...\n")
+
+		cloneCmd := fmt.Sprintf("git clone https://github.com/microsoft/azurelinux.git %s", m.localRepoPath)
+		if err := m.runCommand(cloneCmd); err != nil {
+			return fmt.Errorf("failed to clone repository: %w", err)
+		}
+
+		fmt.Printf("✅ Repository cloned successfully\n\n")
+	}
 
 	// Create dev branch
 	timestamp := time.Now().Format("20060102-150405")
@@ -637,6 +734,15 @@ func (m *UpgradeManager) UpgradeAllPackages(ctx context.Context, analysisFile st
 		fmt.Println("   1. Review the changes: cd", m.localRepoPath, "&& git diff origin/3.0-dev")
 		fmt.Println("   2. Push to remote: git push origin", branchName)
 		fmt.Println("   3. Create PR at: https://github.com/microsoft/azurelinux/compare/3.0-dev...liunan-ms:" + branchName)
+		fmt.Println()
+		fmt.Println("🚀 Pushing branch to remote repository...")
+		pushCmd := fmt.Sprintf("cd %s && git push origin %s", m.localRepoPath, branchName)
+		if err := m.runCommand(pushCmd); err != nil {
+			fmt.Printf("⚠️  Failed to push branch: %v\n", err)
+			fmt.Println("   You can manually push with: git push origin", branchName)
+		} else {
+			fmt.Printf("✅ Branch pushed successfully\n")
+		}
 		fmt.Println()
 	}
 

@@ -26,6 +26,7 @@ A comprehensive tool to track containerd releases, extract dependency informatio
 - **Push to remote** and provide PR creation links
 
 ### TODO
+- **Automatically remove CVE patches included in the new versions during package upgrade**
 - **Automatically upload source tarball**
 - **Automatically trigger package build, image build and tests**
 

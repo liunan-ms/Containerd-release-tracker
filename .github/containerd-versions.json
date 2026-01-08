@@ -1,0 +1,32 @@
+{
+  "containerd": {
+    "version": "2.2.1",
+    "release_url": "https://github.com/containerd/containerd/releases/tag/v2.2.1",
+    "dependencies": {
+      "runc": {
+        "version": "1.3.4",
+        "source": "script/setup/runc-version",
+        "url": "https://github.com/opencontainers/runc/releases/tag/v1.3.4"
+      },
+      "golang": {
+        "minimum": "1.24.3",
+        "source": "go.mod",
+        "ci_versions": [
+          "1.24.11",
+          "1.25.5"
+        ]
+      },
+      "glibc": {
+        "version": "2.35",
+        "source": "release notes",
+        "notes": "Mentioned in release notes"
+      },
+      "libseccomp": {
+        "version": "2.5.6",
+        "source": "runc v1.3.4 Dockerfile",
+        "url": "https://github.com/seccomp/libseccomp/releases"
+      }
+    }
+  },
+  "history": []
+}

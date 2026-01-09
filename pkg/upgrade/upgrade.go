@@ -511,6 +511,9 @@ func (m *UpgradeManager) UpdateSpecFile(ctx context.Context, packageName, curren
 		commitInstruction = fmt.Sprintf("\n6. IMPORTANT: Verify the %%global commit line is set to: %s", commitHash)
 	}
 
+	// Get current date in RPM changelog format (e.g., "Wed Jan 08 2026")
+	currentDate := time.Now().Format("Mon Jan 02 2006")
+
 	prompt := fmt.Sprintf(`You are an expert in RPM spec file management for Azure Linux.
 
 Task: Update the following spec file to version %s.
@@ -522,15 +525,16 @@ Instructions:
 1. Update the Version field to %s
 2. Update the Release field to 1 (reset for new version)
 3. Add a new changelog entry at the top of the %%changelog section with:
-   - Current date in format: %%{_day} %%{_month} %%{_year}
-   - Your name: Containerd Release Tracker <azurelinux@microsoft.com>
+   - Date: %s
+   - Author: Containerd Release Tracker <azurelinux@microsoft.com>
    - Version string: %s-1
    - Message: "Update to version %s for containerd compatibility"
+   Format: * %s Containerd Release Tracker <azurelinux@microsoft.com> - %s-1
 4. Update Source0 URL if it contains version numbers
 5. Keep all other sections unchanged%s
 
 Return ONLY the complete updated spec file content, no explanations or markdown code blocks.`,
-		newVersion, contentToUpdate, newVersion, newVersion, newVersion, commitInstruction)
+		newVersion, contentToUpdate, newVersion, currentDate, newVersion, newVersion, currentDate, newVersion, commitInstruction)
 
 	// For spec files, we need the raw text response, not JSON
 	result, err := m.llmClient.CallLLMRaw(ctx, prompt)
